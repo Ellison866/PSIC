@@ -31,6 +31,16 @@ Follow these steps in order, for one task at a time. Questions that change nothi
 3. Describe the plan in plain words and ask: "OK to start?"
 4. Change nothing until the student says yes. If they change the plan, ask again.
 
+#### Check whether it already exists
+
+Both students follow the same curriculum, so they may ask for the same or similar things. Before planning, check the project and `tasks/active/` for the request.
+
+- **Already in the project:** do not build it again. Tell the student it is already added and how to see it.
+- **Similar to what exists:** tell the student what is already there and how their request differs. Ask whether they want that difference added. If they do, plan only the difference.
+- **Being built by the other student:** tell the student who is working on it. Offer a different task.
+
+#### Reserved files
+
 If a file is reserved by someone else, tell the student who has it and since when. Offer a different task, or suggest they talk to that person or the instructor. Never remove or ignore another student's reservation.
 
 If the student already has a task open, including from an earlier session, finish that task first.
