@@ -111,11 +111,14 @@ function invalidateKey() {
 
 /** Convert a key-service failure into the safe shape returned by the server. */
 function toKeyErrorResponse(error) {
+  const safeError = {
+    message: error?.message || "The AI key could not be retrieved.",
+    fix: error?.fix || "Check the server configuration and try again.",
+  };
+
+  console.error(safeError.fix);
   return {
-    error: {
-      message: error?.message || "The AI key could not be retrieved.",
-      fix: error?.fix || "Check the server configuration and try again.",
-    },
+    error: safeError,
   };
 }
 
