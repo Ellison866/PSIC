@@ -137,6 +137,19 @@ function colorForDistance(type, distance, night) {
   return `rgb(${r}, ${g}, ${b})`;
 }
 
+function drawTerrainSilhouette(width, height, horizon, night) {
+  const columnWidth = Math.max(8, Math.floor(width / CONFIG.WORLD_X));
+  for (let column = 0; column < CONFIG.WORLD_X; column += 1) {
+    const x = Math.floor(state.player.x + Math.cos(state.yaw) * (column - CONFIG.WORLD_X / 2));
+    const z = Math.floor(state.player.z + Math.sin(state.yaw) * (column - CONFIG.WORLD_X / 2));
+    const heightInBlocks = inWorld(x, z) ? Math.max(1, highestVoxelY(x, z) + 1) : 1;
+    const top = horizon - heightInBlocks * 22;
+    const type = inWorld(x, z) ? blockAt(x, z) : "grass";
+    context.fillStyle = colorForDistance(type || "grass", 6, night);
+    context.fillRect(column * columnWidth, top, columnWidth + 1, height - top);
+  }
+}
+
 function drawWorld() {
   if (!canvas || !context) return;
   const bounds = canvas.getBoundingClientRect();
@@ -158,6 +171,7 @@ function drawWorld() {
   const fov = Math.PI / 3;
   const horizon = height * .48;
   const rayStep = Math.max(1, Math.floor(width / 320));
+  let visibleColumns = 0;
   for (let screenX = 0; screenX < width; screenX += rayStep) {
     const rayAngle = state.yaw + (screenX / width - .5) * fov;
     const dx = Math.cos(rayAngle);
@@ -172,12 +186,14 @@ function drawWorld() {
     }
     const columnWidth = rayStep + 1;
     if (!hit) continue;
+    visibleColumns += 1;
     const wallHeight = Math.min(height * 1.2, height / (hit.distance * .72));
     context.fillStyle = colorForDistance(hit.type, hit.distance, night);
     context.fillRect(screenX, horizon - wallHeight, columnWidth, wallHeight);
     context.fillStyle = "rgba(255,255,255,.1)";
     context.fillRect(screenX, horizon - wallHeight, columnWidth, 3);
   }
+  if (visibleColumns === 0 && state.voxels.size > 0) drawTerrainSilhouette(width, height, horizon, night);
   context.fillStyle = night ? "rgba(255, 226, 122, .7)" : "rgba(255, 248, 210, .7)";
   context.beginPath();
   context.arc(width - 58, 52, 20, 0, Math.PI * 2);

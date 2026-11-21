@@ -53,3 +53,5 @@ The voxel canvas now uses a lightweight first-person raycast camera. W/S move, A
 ## Terrain generation
 
 The world uses a repeatable seed to generate rolling hills, layered grass/dirt/stone, water basins, and original wood trees. The first-person renderer now finds the highest voxel in each terrain column and shows the seed in the game header.
+
+The renderer also draws a terrain silhouette fallback when no ray hits are visible, preventing the scene from appearing as only a flat sky and ground.
