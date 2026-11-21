@@ -19,20 +19,27 @@
             <button class="primary" type="submit">Start quest</button>
           </div>
         </form>
-        <p class="hint">Explore with arrow keys or WASD. On a phone, tap a nearby block.</p>
+        <p class="hint">Explore with arrow keys or WASD. Tap nearby blocks on a phone.</p>
       </section>
 
       <section id="game-screen" class="hidden" aria-live="polite">
         <header class="game-header">
           <div><p class="eyebrow">Learning quest</p><h2 id="game-title">Ready?</h2></div>
-          <div class="stats"><span>Score <b id="score">0</b></span><span>Time <b id="timer">60</b></span></div>
+          <div class="stats"><span>Score <b id="score">0</b></span><span>Time <b id="timer">60</b></span><span id="world-time">DAY</span></div>
         </header>
         <div class="game-layout">
           <div class="world-wrap">
-            <div class="world-heading"><p id="target-label" class="target-label">Collect the glowing blocks</p><span class="compass">✦ WORLD 01</span></div>
-            <div id="world" class="world" role="grid" aria-label="Block world"></div>
-            <div id="hotbar" class="hotbar" aria-label="Collected block hotbar"></div>
-            <p class="controls-hint">Move: <b>WASD</b> / <b>arrow keys</b> · Walk onto glowing blocks</p>
+            <div class="world-heading"><p id="target-label" class="target-label">Mine the glowing blocks</p><span class="compass">✦ WORLD 01</span></div>
+            <div class="world-frame"><div id="world" class="world" role="grid" aria-label="3D-style block world"></div></div>
+            <div id="hotbar" class="hotbar" aria-label="Selectable block inventory"></div>
+            <p id="selected-block" class="selected-block">Selected: grass</p>
+            <div class="action-bar">
+              <button id="mine-button" class="action-button" type="button">⛏ Mine <span>E</span></button>
+              <button id="build-button" class="action-button" type="button">▣ Build <span>B</span></button>
+              <button id="craft-button" class="action-button" type="button">✦ Craft stone</button>
+            </div>
+            <p id="craft-status" class="controls-hint">2 dirt + 1 wood → 1 stone</p>
+            <p class="controls-hint">Move: <b>WASD</b> / <b>arrows</b> · Mine: <b>E</b> / <b>space</b> · Build: <b>B</b></p>
           </div>
           <aside class="quest-card">
             <p class="eyebrow">Quest card</p>

@@ -37,3 +37,7 @@ The OpenAI model with “luna” in its name is `gpt-5.6-luna`.
 ## Minecraft-style world update
 
 The game now uses a small 7x7 tile world with grass, dirt, stone, water, and wood blocks. The player moves with WASD or arrow keys, collects glowing target blocks, and sees collected blocks in a hotbar.
+
+## 3D-style block world update
+
+The world is now an original 11x11 isometric 3D-style scene. Players can mine with E/space, build with B, select inventory slots, craft stone from dirt and wood, and watch the scene switch between day and night during the level.
