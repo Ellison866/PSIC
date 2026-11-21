@@ -61,3 +61,7 @@ The raycast begins beyond the player's own ground cell so the camera does not tu
 ## Current terrain prototype
 
 The client game has been intentionally restarted to focus only on seeded terrain generation and textured voxel rendering. Movement, mining, placing, crafting, quests, and timers are deferred until the terrain view is solid. The server-side MindDo/OpenAI flow remains in place.
+
+The terrain prototype now uses a fixed first-person raycast camera with a crosshair. There are intentionally no movement or block interaction controls in this pass.
+
+The terrain renderer now uses Three.js `WebGLRenderer`, `PerspectiveCamera`, textured `BoxGeometry` instances, lighting, fog, and a fixed camera. The Three.js module is pinned in the page import map; movement and interactions remain intentionally deferred.

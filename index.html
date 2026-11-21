@@ -11,11 +11,12 @@
       <header class="hero">
         <p class="eyebrow">Mind Blocks · terrain prototype</p>
         <h1>Voxel <span>Valley</span></h1>
-        <p class="intro">A quiet first step: textured terrain blocks, rendered as an original voxel landscape.</p>
+        <p class="intro">A quiet first step: textured terrain blocks, rendered from a fixed first-person view.</p>
         <p id="world-seed" class="seed">SEED 20261120</p>
       </header>
       <section class="terrain-card" aria-label="Textured voxel terrain">
-        <canvas id="terrain-canvas" aria-label="Textured voxel terrain landscape"></canvas>
+        <canvas id="terrain-canvas" aria-label="Fixed first-person textured voxel terrain"></canvas>
+        <span class="crosshair" aria-hidden="true">+</span>
       </section>
       <div class="legend" aria-label="Block texture legend">
         <span><i class="swatch grass"></i>Grass</span>
@@ -25,6 +26,9 @@
         <span><i class="swatch wood"></i>Wood</span>
       </div>
     </main>
-    <script src="game.js"></script>
+    <script type="importmap">
+      {"imports":{"three":"https://unpkg.com/three@0.180.0/build/three.module.js"}}
+    </script>
+    <script type="module" src="game.js"></script>
   </body>
 </html>

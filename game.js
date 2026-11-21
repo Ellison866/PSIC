@@ -1,26 +1,26 @@
+import * as THREE from "three";
+
 const CONFIG = {
   WORLD_X: 18,
   WORLD_Z: 18,
-  TILE_WIDTH: 46,
-  TILE_HEIGHT: 23,
-  BLOCK_HEIGHT: 23,
   MAX_HEIGHT: 5,
   SEED: 20261120,
+  CAMERA: { x: 9, y: 4.6, z: -8, lookX: 9, lookY: 1.2, lookZ: 8 },
 };
 
-const COLORS = {
-  grass: { top: "#72c45a", left: "#4f9e4d", right: "#39743e" },
-  dirt: { top: "#b8784a", left: "#8d5437", right: "#653b2e" },
-  stone: { top: "#aebcc0", left: "#7f9299", right: "#5b6d76" },
-  water: { top: "#6bd1df", left: "#3c9ab6", right: "#28728e" },
-  wood: { top: "#d08a4b", left: "#a66136", right: "#77402c" },
+const BLOCK_COLORS = {
+  grass: "#72c45a",
+  dirt: "#b8784a",
+  stone: "#aebcc0",
+  water: "#55bdd7",
+  wood: "#d08a4b",
 };
 
-const state = { voxels: new Map(), canvas: document.getElementById("terrain-canvas"), context: null };
+const state = { voxels: new Map(), scene: null, camera: null, renderer: null };
+const canvas = document.getElementById("terrain-canvas");
 
 function key(x, y, z) { return `${x},${y},${z}`; }
 function setVoxel(x, y, z, type) { state.voxels.set(key(x, y, z), type); }
-function getVoxel(x, y, z) { return state.voxels.get(key(x, y, z)); }
 
 function seededNoise(x, z) {
   const value = Math.sin((x + CONFIG.SEED) * 12.9898 + (z - CONFIG.SEED) * 78.233) * 43758.5453;
@@ -37,8 +37,8 @@ function generateTerrain() {
   for (let x = 0; x < CONFIG.WORLD_X; x += 1) {
     for (let z = 0; z < CONFIG.WORLD_Z; z += 1) {
       const height = terrainHeight(x, z);
-      const water = height === 1 && Math.sin(x * .8) + Math.cos(z * .7) < -.35;
-      if (water) {
+      const basin = height === 1 && Math.sin(x * .8) + Math.cos(z * .7) < -.35;
+      if (basin) {
         setVoxel(x, 0, z, "dirt");
         setVoxel(x, 1, z, "water");
         continue;
@@ -57,101 +57,93 @@ function generateTerrain() {
   }
 }
 
-function project(x, y, z, width) {
-  return {
-    x: width / 2 + (x - z) * CONFIG.TILE_WIDTH / 2,
-    y: 52 + (x + z) * CONFIG.TILE_HEIGHT / 2 - y * CONFIG.BLOCK_HEIGHT,
-  };
-}
-
-function face(points, fill, type, textureSide, context) {
-  context.save();
-  context.beginPath();
-  context.moveTo(points[0].x, points[0].y);
-  points.slice(1).forEach((point) => context.lineTo(point.x, point.y));
-  context.closePath();
-  context.fillStyle = fill;
-  context.fill();
-  context.clip();
-  context.globalAlpha = .27;
-  context.fillStyle = textureSide === "top" ? "#fff8d0" : "#1d3940";
-  const bounds = points.reduce((result, point) => ({
-    minX: Math.min(result.minX, point.x), maxX: Math.max(result.maxX, point.x),
-    minY: Math.min(result.minY, point.y), maxY: Math.max(result.maxY, point.y),
-  }), { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
-  const step = type === "stone" ? 9 : 12;
+function createBlockTexture(type) {
+  const textureCanvas = document.createElement("canvas");
+  textureCanvas.width = 32;
+  textureCanvas.height = 32;
+  const context = textureCanvas.getContext("2d");
+  context.fillStyle = BLOCK_COLORS[type];
+  context.fillRect(0, 0, 32, 32);
+  context.fillStyle = type === "water" ? "rgba(225,255,255,.28)" : "rgba(30,50,35,.2)";
   if (type === "water") {
-    for (let y = bounds.minY; y < bounds.maxY + step; y += step) context.fillRect(bounds.minX, y, bounds.maxX - bounds.minX, 2);
+    for (let y = 4; y < 32; y += 8) context.fillRect(0, y, 32, 2);
   } else if (type === "wood") {
-    for (let x = bounds.minX; x < bounds.maxX + step; x += step) context.fillRect(x, bounds.minY, 2, bounds.maxY - bounds.minY);
+    for (let x = 3; x < 32; x += 8) context.fillRect(x, 0, 2, 32);
   } else {
-    for (let x = bounds.minX; x < bounds.maxX + step; x += step) {
-      for (let y = bounds.minY; y < bounds.maxY + step; y += step) context.fillRect(x, y, type === "stone" ? 3 : 2, type === "stone" ? 3 : 2);
+    for (let x = 3; x < 32; x += 8) {
+      for (let y = 3; y < 32; y += 8) context.fillRect(x, y, 3, 3);
     }
   }
-  context.restore();
-  context.strokeStyle = "rgba(18, 37, 42, .5)";
-  context.lineWidth = 1;
-  context.beginPath();
-  context.moveTo(points[0].x, points[0].y);
-  points.slice(1).forEach((point) => context.lineTo(point.x, point.y));
-  context.closePath();
-  context.stroke();
+  const texture = new THREE.CanvasTexture(textureCanvas);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  return texture;
 }
 
-function drawVoxel(x, y, z, type, width, context) {
-  const top = project(x, y + 1, z, width);
-  const right = project(x + 1, y + 1, z, width);
-  const back = project(x + 1, y + 1, z + 1, width);
-  const left = project(x, y + 1, z + 1, width);
-  const bottomRight = project(x + 1, y, z, width);
-  const bottomLeft = project(x, y, z + 1, width);
-  const colors = COLORS[type];
-  face([top, right, back, left], colors.top, type, "top", context);
-  face([left, back, bottomLeft, project(x, y, z, width)], colors.left, type, "left", context);
-  face([right, back, bottomRight, project(x + 1, y, z, width)], colors.right, type, "right", context);
-}
-
-function renderTerrain() {
-  const canvas = state.canvas;
-  const context = state.context;
-  const bounds = canvas.getBoundingClientRect();
-  const width = bounds.width;
-  const height = bounds.height;
-  const sky = context.createLinearGradient(0, 0, 0, height);
-  sky.addColorStop(0, "#70c8df");
-  sky.addColorStop(.58, "#d9f1d9");
-  sky.addColorStop(.59, "#a8d67e");
-  sky.addColorStop(1, "#6d9e56");
-  context.fillStyle = sky;
-  context.fillRect(0, 0, width, height);
+function addSun(scene) {
+  const sunCanvas = document.createElement("canvas");
+  sunCanvas.width = 64;
+  sunCanvas.height = 64;
+  const context = sunCanvas.getContext("2d");
   context.fillStyle = "#fff0a9";
   context.shadowColor = "#fff0a9";
-  context.shadowBlur = 24;
+  context.shadowBlur = 12;
   context.beginPath();
-  context.arc(width - 86, 76, 27, 0, Math.PI * 2);
+  context.arc(32, 32, 20, 0, Math.PI * 2);
   context.fill();
-  context.shadowBlur = 0;
+  const sun = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(sunCanvas), transparent: true }));
+  sun.position.set(5, 9, 11);
+  sun.scale.set(3, 3, 1);
+  scene.add(sun);
+}
 
-  const blocks = [...state.voxels.entries()].map(([location, type]) => {
+function buildScene() {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color("#7bcbe0");
+  scene.fog = new THREE.Fog("#bce6d9", 16, 38);
+  scene.add(new THREE.HemisphereLight("#e8fbff", "#487143", 2.2));
+  const sunlight = new THREE.DirectionalLight("#fff4ca", 3.2);
+  sunlight.position.set(-8, 14, -10);
+  scene.add(sunlight);
+  addSun(scene);
+
+  const geometry = new THREE.BoxGeometry(1, 1, 1);
+  const blocksByType = new Map(Object.keys(BLOCK_COLORS).map((type) => [type, []]));
+  state.voxels.forEach((type, location) => {
     const [x, y, z] = location.split(",").map(Number);
-    return { x, y, z, type };
-  }).sort((a, b) => (a.x + a.z + a.y) - (b.x + b.z + b.y));
-  blocks.forEach((block) => drawVoxel(block.x, block.y, block.z, block.type, width, context));
+    blocksByType.get(type).push({ x, y, z });
+  });
+  blocksByType.forEach((blocks, type) => {
+    if (!blocks.length) return;
+    const material = new THREE.MeshLambertMaterial({ map: createBlockTexture(type) });
+    const mesh = new THREE.InstancedMesh(geometry, material, blocks.length);
+    blocks.forEach((block, index) => {
+      const matrix = new THREE.Matrix4();
+      matrix.setPosition(block.x, block.y + .5, block.z);
+      mesh.setMatrixAt(index, matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    scene.add(mesh);
+  });
+  return scene;
 }
 
 function resize() {
-  const canvas = state.canvas;
-  const scale = window.devicePixelRatio || 1;
   const bounds = canvas.getBoundingClientRect();
-  canvas.width = Math.floor(bounds.width * scale);
-  canvas.height = Math.floor(bounds.height * scale);
-  state.context.setTransform(scale, 0, 0, scale, 0, 0);
-  renderTerrain();
+  state.camera.aspect = bounds.width / bounds.height;
+  state.camera.updateProjectionMatrix();
+  state.renderer.setSize(bounds.width, bounds.height, false);
+  state.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  state.renderer.render(state.scene, state.camera);
 }
 
-state.context = state.canvas.getContext("2d");
 generateTerrain();
-document.getElementById("world-seed").textContent = `SEED ${CONFIG.SEED}`;
+state.scene = buildScene();
+state.camera = new THREE.PerspectiveCamera(64, 1, .1, 100);
+state.camera.position.set(CONFIG.CAMERA.x, CONFIG.CAMERA.y, CONFIG.CAMERA.z);
+state.camera.lookAt(CONFIG.CAMERA.lookX, CONFIG.CAMERA.lookY, CONFIG.CAMERA.lookZ);
+state.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+state.renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.getElementById("world-seed").textContent = `SEED ${CONFIG.SEED} · THREE.JS VOXELS`;
 window.addEventListener("resize", resize);
 resize();
