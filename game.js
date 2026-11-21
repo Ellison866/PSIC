@@ -152,8 +152,8 @@ function updateMovement(delta) {
   const right = { x: 1, z: 0 };
   if (state.keys.has("w") || state.keys.has("arrowup")) moveCamera(forward, speed);
   if (state.keys.has("s") || state.keys.has("arrowdown")) moveCamera({ x: -forward.x, z: -forward.z }, speed);
-  if (state.keys.has("a") || state.keys.has("arrowleft")) moveCamera({ x: -right.x, z: -right.z }, speed);
-  if (state.keys.has("d") || state.keys.has("arrowright")) moveCamera(right, speed);
+  if (state.keys.has("a") || state.keys.has("arrowleft")) moveCamera(right, speed);
+  if (state.keys.has("d") || state.keys.has("arrowright")) moveCamera({ x: -right.x, z: -right.z }, speed);
 }
 
 let previousTime = performance.now();

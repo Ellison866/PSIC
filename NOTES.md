@@ -67,3 +67,5 @@ The terrain prototype now uses a fixed first-person raycast camera with a crossh
 The terrain renderer now uses Three.js `WebGLRenderer`, `PerspectiveCamera`, textured `BoxGeometry` instances, lighting, fog, and a fixed camera. The Three.js module is pinned in the page import map; movement and interactions remain intentionally deferred.
 
 Movement is now enabled with WASD/arrow keys and a four-button touch pad. The camera keeps a fixed height and stays inside the generated terrain bounds.
+
+The horizontal controls are mapped to match the screen: left/A moves left and right/D moves right.
