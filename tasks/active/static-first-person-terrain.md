@@ -1,4 +1,4 @@
-Task: Add a fixed first-person camera to the textured terrain prototype.
+Task: Migrate the terrain-only client to a Three.js first-person renderer.
 Owner: Codex
 Started: 2026-11-20
 Files:
