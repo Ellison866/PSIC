@@ -49,3 +49,7 @@ The client now stores blocks as true `x,y,z` voxel coordinates in a `Map` and re
 ## First-person view
 
 The voxel canvas now uses a lightweight first-person raycast camera. W/S move, A/D and arrow keys turn, pointer dragging looks around, and tapping the view mines.
+
+## Terrain generation
+
+The world uses a repeatable seed to generate rolling hills, layered grass/dirt/stone, water basins, and original wood trees. The first-person renderer now finds the highest voxel in each terrain column and shows the seed in the game header.

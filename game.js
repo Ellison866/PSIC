@@ -3,6 +3,7 @@ const CONFIG = {
   WORLD_X: 12,
   WORLD_Z: 12,
   MAX_Y: 4,
+  WORLD_SEED: 20261120,
   TILE_WIDTH: 54,
   TILE_HEIGHT: 27,
   BLOCK_HEIGHT: 27,
@@ -53,6 +54,21 @@ function setVoxel(x, y, z, type) { if (type) state.voxels.set(key(x, y, z), type
 function inWorld(x, z) { return x >= 0 && z >= 0 && x < CONFIG.WORLD_X && z < CONFIG.WORLD_Z; }
 function randomItem(items) { return items[Math.floor(Math.random() * items.length)]; }
 
+function seededNoise(x, z) {
+  const value = Math.sin((x + CONFIG.WORLD_SEED) * 12.9898 + (z - CONFIG.WORLD_SEED) * 78.233) * 43758.5453;
+  return value - Math.floor(value);
+}
+
+function terrainHeight(x, z) {
+  const hills = Math.sin((x + CONFIG.WORLD_SEED * .001) * .72) + Math.cos((z - CONFIG.WORLD_SEED * .001) * .58);
+  return Math.max(1, Math.min(3, 2 + Math.round(hills * .42 + (seededNoise(x, z) - .5) * .65)));
+}
+
+function highestVoxelY(x, z) {
+  for (let y = CONFIG.MAX_Y; y >= 0; y -= 1) if (getVoxel(x, y, z)) return y;
+  return -1;
+}
+
 function showError(message) {
   errorBox.textContent = message;
   errorBox.classList.remove("hidden");
@@ -66,19 +82,33 @@ function makeWorld() {
   state.voxels.clear();
   for (let x = 0; x < CONFIG.WORLD_X; x += 1) {
     for (let z = 0; z < CONFIG.WORLD_Z; z += 1) {
-      const edge = x === 0 || z === 0 || x === CONFIG.WORLD_X - 1 || z === CONFIG.WORLD_Z - 1;
-      const ground = edge ? "water" : randomItem(["grass", "grass", "grass", "dirt", "stone"]);
-      setVoxel(x, 0, z, ground);
-      if (!edge && Math.random() < 0.16) setVoxel(x, 1, z, randomItem(["stone", "wood", "dirt"]));
+      const height = terrainHeight(x, z);
+      const basin = height === 1 && (Math.sin(x * .8) + Math.cos(z * .7) < -.45);
+      if (basin) {
+        setVoxel(x, 0, z, "stone");
+        setVoxel(x, 1, z, "water");
+        continue;
+      }
+      for (let y = 0; y < height; y += 1) {
+        setVoxel(x, y, z, y === height - 1 ? "grass" : y === height - 2 ? "dirt" : "stone");
+      }
+      const treeSpot = height >= 2 && seededNoise(x + 17, z - 11) > .84 && x > 1 && z > 1 && x < CONFIG.WORLD_X - 2 && z < CONFIG.WORLD_Z - 2;
+      if (treeSpot) {
+        setVoxel(x, height, z, "wood");
+        setVoxel(x, height + 1, z, "wood");
+        setVoxel(x, height + 1, z + 1, "wood");
+        setVoxel(x + 1, height + 1, z, "wood");
+      }
     }
   }
   setVoxel(state.player.x, 0, state.player.z, "grass");
-  setVoxel(state.player.x, 1, state.player.z, null);
+  for (let y = 1; y <= CONFIG.MAX_Y; y += 1) setVoxel(state.player.x, y, state.player.z, null);
   state.target = randomItem(CONFIG.TARGET_BLOCKS);
   const targetX = 1 + Math.floor(Math.random() * (CONFIG.WORLD_X - 2));
   const targetZ = 1 + Math.floor(Math.random() * (CONFIG.WORLD_Z - 2));
-  setVoxel(targetX, Math.random() < 0.5 ? 0 : 1, targetZ, state.target);
+  setVoxel(targetX, highestVoxelY(targetX, targetZ), targetZ, state.target);
   $("target-label").textContent = `Mine the glowing ${TILE_LABELS[state.target]} blocks`;
+  $("world-seed").textContent = `SEED ${CONFIG.WORLD_SEED}`;
 }
 
 function resizeCanvas() {
@@ -92,7 +122,8 @@ function resizeCanvas() {
 
 function blockAt(x, z) {
   if (!inWorld(x, z)) return null;
-  return getVoxel(x, 1, z) || getVoxel(x, 0, z);
+  const top = highestVoxelY(x, z);
+  return top < 0 ? null : getVoxel(x, top, z);
 }
 
 function colorForDistance(type, distance, night) {
@@ -189,13 +220,8 @@ function moveForward(amount) {
 }
 
 function pickAdjacentVoxel() {
-  const candidates = [
-    [state.player.x, 1, state.player.z], [state.player.x, 0, state.player.z],
-    [state.player.x + 1, 1, state.player.z], [state.player.x - 1, 1, state.player.z],
-    [state.player.x, 1, state.player.z + 1], [state.player.x, 1, state.player.z - 1],
-    [state.player.x + 1, 0, state.player.z], [state.player.x - 1, 0, state.player.z],
-  ];
-  return candidates.find(([x, y, z]) => inWorld(x, z) && getVoxel(x, y, z) === state.target);
+  const candidates = [[state.player.x, state.player.z], [state.player.x + 1, state.player.z], [state.player.x - 1, state.player.z], [state.player.x, state.player.z + 1], [state.player.x, state.player.z - 1]];
+  return candidates.map(([x, z]) => [x, highestVoxelY(x, z), z]).find(([x, y, z]) => inWorld(x, z) && y >= 0 && getVoxel(x, y, z) === state.target);
 }
 
 function mineBlock() {
