@@ -45,3 +45,7 @@ The world is now an original 11x11 isometric 3D-style scene. Players can mine wi
 ## Voxel rebuild
 
 The client now stores blocks as true `x,y,z` voxel coordinates in a `Map` and renders visible cube faces on a canvas. The learning quest, timer, scoring, inventory, crafting, day/night cycle, and server-only AI flow remain part of the game.
+
+## First-person view
+
+The voxel canvas now uses a lightweight first-person raycast camera. W/S move, A/D and arrow keys turn, pointer dragging looks around, and tapping the view mines.

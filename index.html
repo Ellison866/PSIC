@@ -19,7 +19,7 @@
             <button class="primary" type="submit">Start quest</button>
           </div>
         </form>
-        <p class="hint">Move with WASD or arrow keys. Tap the world or action buttons on a phone.</p>
+        <p class="hint">First-person controls: W/S move, A/D or arrows turn, drag to look, and tap to mine.</p>
       </section>
 
       <section id="game-screen" class="hidden" aria-live="polite">
@@ -30,7 +30,7 @@
         <div class="game-layout">
           <div class="world-wrap">
             <div class="world-heading"><p id="target-label" class="target-label">Mine the glowing blocks</p><span class="compass">✦ VOXEL WORLD</span></div>
-            <div class="voxel-frame"><canvas id="voxel-canvas" aria-label="Voxel world"></canvas></div>
+            <div class="voxel-frame"><canvas id="voxel-canvas" aria-label="First-person voxel world"></canvas><span class="crosshair" aria-hidden="true">+</span></div>
             <div id="hotbar" class="hotbar" aria-label="Selectable block inventory"></div>
             <p id="selected-block" class="selected-block">Selected: grass</p>
             <div class="action-bar">
@@ -39,7 +39,7 @@
               <button id="craft-button" class="action-button" type="button">✦ Craft stone</button>
             </div>
             <p id="craft-status" class="controls-hint">2 dirt + 1 wood → 1 stone</p>
-            <p class="controls-hint">Move: <b>WASD</b> / <b>arrows</b> · Mine: <b>E</b> / <b>space</b> · Build: <b>B</b></p>
+            <p class="controls-hint">Move: <b>W/S</b> · Turn: <b>A/D</b> / <b>arrows</b> · Drag to look · Mine: <b>E</b> / <b>space</b></p>
           </div>
           <aside class="quest-card">
             <p class="eyebrow">Quest card</p>

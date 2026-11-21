@@ -31,6 +31,7 @@ const state = {
   player: { x: 6, y: 1, z: 6 },
   inventory: { ...CONFIG.STARTING_INVENTORY },
   selectedType: "grass",
+  yaw: 0,
   quest: null,
   matches: 0,
   running: false,
@@ -89,83 +90,69 @@ function resizeCanvas() {
   drawWorld();
 }
 
-function isoPoint(x, y, z) {
-  const bounds = canvas.getBoundingClientRect();
-  return {
-    x: bounds.width / 2 + (x - z) * CONFIG.TILE_WIDTH / 2,
-    y: 70 + (x + z) * CONFIG.TILE_HEIGHT / 2 - y * CONFIG.BLOCK_HEIGHT,
-  };
+function blockAt(x, z) {
+  if (!inWorld(x, z)) return null;
+  return getVoxel(x, 1, z) || getVoxel(x, 0, z);
 }
 
-function polygon(points, fill, stroke = "rgba(20, 37, 42, .35)") {
-  context.beginPath();
-  context.moveTo(points[0].x, points[0].y);
-  points.slice(1).forEach((point) => context.lineTo(point.x, point.y));
-  context.closePath();
-  context.fillStyle = fill;
-  context.fill();
-  context.strokeStyle = stroke;
-  context.lineWidth = 1;
-  context.stroke();
-}
-
-function drawVoxel(x, y, z, type, night) {
-  const top = isoPoint(x, y + 1, z);
-  const right = isoPoint(x + 1, y + 1, z);
-  const back = isoPoint(x + 1, y + 1, z + 1);
-  const left = isoPoint(x, y + 1, z + 1);
-  const bottomRight = isoPoint(x + 1, y, z);
-  const bottomLeft = isoPoint(x, y, z + 1);
+function colorForDistance(type, distance, night) {
+  const shade = Math.max(night ? .35 : .5, 1 - distance / 18);
   const colors = COLORS[type];
-  const shade = night ? .72 : 1;
-  polygon([top, right, back, left], colors[0], "rgba(20, 37, 42, .5)");
-  polygon([left, back, bottomLeft, isoPoint(x, y, z)], colors[1], "rgba(20, 37, 42, .5)");
-  polygon([right, back, bottomRight, isoPoint(x + 1, y, z)], colors[2], "rgba(20, 37, 42, .5)");
-  if (night) {
-    context.fillStyle = "rgba(18, 30, 48, .24)";
-    polygon([top, right, back, left], `rgba(18, 30, 48, ${1 - shade})`, "transparent");
-  }
-  if (type === state.target) {
-    context.beginPath();
-    context.arc(top.x, top.y, 8, 0, Math.PI * 2);
-    context.fillStyle = "rgba(255, 224, 104, .85)";
-    context.shadowColor = "#ffe06a";
-    context.shadowBlur = 16;
-    context.fill();
-    context.shadowBlur = 0;
-  }
-}
-
-function drawPlayer(night) {
-  const point = isoPoint(state.player.x + .5, state.player.y + .95, state.player.z + .5);
-  context.fillStyle = night ? "#ffe36b" : "#fff8e8";
-  context.strokeStyle = "#26323a";
-  context.lineWidth = 3;
-  context.beginPath();
-  context.arc(point.x, point.y - 13, 9, 0, Math.PI * 2);
-  context.fill();
-  context.stroke();
-  context.fillStyle = "#65a8d8";
-  context.fillRect(point.x - 8, point.y - 4, 16, 13);
+  const base = colors[1];
+  const value = Number.parseInt(base.slice(1), 16);
+  const r = Math.floor(((value >> 16) & 255) * shade);
+  const g = Math.floor(((value >> 8) & 255) * shade);
+  const b = Math.floor((value & 255) * shade);
+  return `rgb(${r}, ${g}, ${b})`;
 }
 
 function drawWorld() {
   if (!canvas || !context) return;
   const bounds = canvas.getBoundingClientRect();
-  context.clearRect(0, 0, bounds.width, bounds.height);
+  const width = bounds.width;
+  const height = bounds.height;
   const night = document.body.classList.contains("night");
-  context.fillStyle = night ? "#1a3042" : "#75c9db";
-  context.fillRect(0, 0, bounds.width, bounds.height);
-  context.fillStyle = night ? "rgba(255, 226, 122, .45)" : "rgba(255, 248, 210, .55)";
+  context.clearRect(0, 0, width, height);
+  const sky = context.createLinearGradient(0, 0, 0, height / 2);
+  sky.addColorStop(0, night ? "#14253c" : "#74c9dc");
+  sky.addColorStop(1, night ? "#46657a" : "#d8f1df");
+  context.fillStyle = sky;
+  context.fillRect(0, 0, width, height / 2);
+  const ground = context.createLinearGradient(0, height / 2, 0, height);
+  ground.addColorStop(0, night ? "#273c42" : "#7ea85b");
+  ground.addColorStop(1, night ? "#17272d" : "#3f7046");
+  context.fillStyle = ground;
+  context.fillRect(0, height / 2, width, height / 2);
+
+  const fov = Math.PI / 3;
+  const horizon = height * .48;
+  const rayStep = Math.max(1, Math.floor(width / 320));
+  for (let screenX = 0; screenX < width; screenX += rayStep) {
+    const rayAngle = state.yaw + (screenX / width - .5) * fov;
+    const dx = Math.cos(rayAngle);
+    const dz = Math.sin(rayAngle);
+    let hit = null;
+    for (let distance = .15; distance < 18; distance += .035) {
+      const x = Math.floor(state.player.x + dx * distance);
+      const z = Math.floor(state.player.z + dz * distance);
+      const type = blockAt(x, z);
+      if (type) { hit = { type, distance }; break; }
+      if (!inWorld(x, z)) break;
+    }
+    const columnWidth = rayStep + 1;
+    if (!hit) continue;
+    const wallHeight = Math.min(height * 1.2, height / (hit.distance * .72));
+    context.fillStyle = colorForDistance(hit.type, hit.distance, night);
+    context.fillRect(screenX, horizon - wallHeight, columnWidth, wallHeight);
+    context.fillStyle = "rgba(255,255,255,.1)";
+    context.fillRect(screenX, horizon - wallHeight, columnWidth, 3);
+  }
+  context.fillStyle = night ? "rgba(255, 226, 122, .7)" : "rgba(255, 248, 210, .7)";
   context.beginPath();
-  context.arc(bounds.width - 55, 48, 22, 0, Math.PI * 2);
+  context.arc(width - 58, 52, 20, 0, Math.PI * 2);
   context.fill();
-  const blocks = [...state.voxels.entries()].map(([location, type]) => {
-    const [x, y, z] = location.split(",").map(Number);
-    return { x, y, z, type };
-  }).sort((a, b) => (a.x + a.z + a.y) - (b.x + b.z + b.y));
-  blocks.forEach((block) => drawVoxel(block.x, block.y, block.z, block.type, night));
-  drawPlayer(night);
+  context.fillStyle = "rgba(255,255,255,.2)";
+  context.fillRect(0, horizon, width, 2);
 }
 
 function renderHotbar() {
@@ -190,6 +177,15 @@ function movePlayer(dx, dz) {
   state.player.x = x;
   state.player.z = z;
   drawWorld();
+}
+
+function turnCamera(amount) {
+  state.yaw += amount;
+  drawWorld();
+}
+
+function moveForward(amount) {
+  movePlayer(Math.round(Math.cos(state.yaw)) * amount, Math.round(Math.sin(state.yaw)) * amount);
 }
 
 function pickAdjacentVoxel() {
@@ -340,22 +336,29 @@ $("mine-button").addEventListener("click", mineBlock);
 $("build-button").addEventListener("click", buildBlock);
 $("play-again").addEventListener("click", () => { startScreen.classList.remove("hidden"); gameOver.classList.add("hidden"); document.body.classList.remove("night"); $("subject").focus(); });
 $("quit-button").addEventListener("click", endGame);
-canvas.addEventListener("click", (event) => {
-  if (!state.running) return;
-  const bounds = canvas.getBoundingClientRect();
-  const dx = (event.clientX - bounds.left - bounds.width / 2) / (CONFIG.TILE_WIDTH / 2);
-  const dz = (event.clientY - bounds.top - 70) / (CONFIG.TILE_HEIGHT / 2);
-  const x = Math.round((dx + dz) / 2);
-  const z = Math.round((dz - dx) / 2);
-  if (Math.abs(x - state.player.x) + Math.abs(z - state.player.z) === 1) {
-    movePlayer(x - state.player.x, z - state.player.z);
-  }
+let pointerStartX = 0;
+let pointerMoved = false;
+canvas.addEventListener("pointerdown", (event) => {
+  pointerStartX = event.clientX;
+  pointerMoved = false;
+  canvas.setPointerCapture(event.pointerId);
 });
+canvas.addEventListener("pointermove", (event) => {
+  if (!event.buttons) return;
+  const change = event.clientX - pointerStartX;
+  if (Math.abs(change) > 2) pointerMoved = true;
+  state.yaw += change * .008;
+  pointerStartX = event.clientX;
+  drawWorld();
+});
+canvas.addEventListener("pointerup", () => { if (!pointerMoved && state.running) mineBlock(); });
 window.addEventListener("resize", resizeCanvas);
 document.addEventListener("keydown", (event) => {
   if (!state.running) return;
-  const moves = { ArrowRight: [1, 0], d: [1, 0], D: [1, 0], ArrowLeft: [-1, 0], a: [-1, 0], A: [-1, 0], ArrowDown: [0, 1], s: [0, 1], S: [0, 1], ArrowUp: [0, -1], w: [0, -1], W: [0, -1] };
-  if (moves[event.key]) { event.preventDefault(); movePlayer(...moves[event.key]); }
+  if (["ArrowLeft", "a", "A"].includes(event.key)) { event.preventDefault(); turnCamera(-Math.PI / 2); }
+  if (["ArrowRight", "d", "D"].includes(event.key)) { event.preventDefault(); turnCamera(Math.PI / 2); }
+  if (["ArrowUp", "w", "W"].includes(event.key)) { event.preventDefault(); moveForward(1); }
+  if (["ArrowDown", "s", "S"].includes(event.key)) { event.preventDefault(); moveForward(-1); }
   if (event.key === "e" || event.key === "E" || event.key === " ") { event.preventDefault(); mineBlock(); }
   if (event.key === "b" || event.key === "B") { event.preventDefault(); buildBlock(); }
   if (/^[1-5]$/.test(event.key)) { state.selectedType = CONFIG.TARGET_BLOCKS[Number(event.key) - 1]; renderHotbar(); }
