@@ -1,6 +1,11 @@
 const CONFIG = {
   ROUND_SECONDS: 60,
-  WORLD_SIZE: 11,
+  WORLD_X: 12,
+  WORLD_Z: 12,
+  MAX_Y: 4,
+  TILE_WIDTH: 54,
+  TILE_HEIGHT: 27,
+  BLOCK_HEIGHT: 27,
   POINTS_PER_BLOCK: 10,
   WRONG_BLOCK_PENALTY: 2,
   QUEST_EVERY: 3,
@@ -9,13 +14,21 @@ const CONFIG = {
 };
 
 const TILE_LABELS = { grass: "grass", dirt: "dirt", stone: "stone", water: "water", wood: "wood" };
+const COLORS = {
+  grass: ["#a8e063", "#5eae4f", "#47833d"],
+  dirt: ["#bd8051", "#905533", "#633a2c"],
+  stone: ["#b6c5ca", "#84979d", "#5c7078"],
+  water: ["#7bd7e6", "#3e9fc5", "#277595"],
+  wood: ["#d29456", "#a96435", "#704028"],
+};
+
 const state = {
   score: 0,
   seconds: CONFIG.ROUND_SECONDS,
   target: "",
   subject: "",
-  world: [],
-  player: { x: 5, y: 5 },
+  voxels: new Map(),
+  player: { x: 6, y: 1, z: 6 },
   inventory: { ...CONFIG.STARTING_INVENTORY },
   selectedType: "grass",
   quest: null,
@@ -25,11 +38,19 @@ const state = {
 };
 
 const $ = (id) => document.getElementById(id);
+const canvas = $("voxel-canvas");
+const context = canvas.getContext("2d");
 const startScreen = $("start-screen");
 const gameScreen = $("game-screen");
 const gameOver = $("game-over");
 const thinking = $("thinking");
 const errorBox = $("error-box");
+
+function key(x, y, z) { return `${x},${y},${z}`; }
+function getVoxel(x, y, z) { return state.voxels.get(key(x, y, z)); }
+function setVoxel(x, y, z, type) { if (type) state.voxels.set(key(x, y, z), type); else state.voxels.delete(key(x, y, z)); }
+function inWorld(x, z) { return x >= 0 && z >= 0 && x < CONFIG.WORLD_X && z < CONFIG.WORLD_Z; }
+function randomItem(items) { return items[Math.floor(Math.random() * items.length)]; }
 
 function showError(message) {
   errorBox.textContent = message;
@@ -39,44 +60,112 @@ function showError(message) {
 
 function setThinking(isThinking) { thinking.classList.toggle("hidden", !isThinking); }
 function renderStats() { $("score").textContent = state.score; $("timer").textContent = state.seconds; }
-function randomItem(items) { return items[Math.floor(Math.random() * items.length)]; }
-function inWorld(x, y) { return x >= 0 && y >= 0 && x < CONFIG.WORLD_SIZE && y < CONFIG.WORLD_SIZE; }
 
 function makeWorld() {
-  const size = CONFIG.WORLD_SIZE;
-  state.world = Array.from({ length: size }, (_, y) => Array.from({ length: size }, (_, x) => {
-    if (x === 0 || y === 0 || x === size - 1 || y === size - 1) return "water";
-    const roll = Math.random();
-    if (roll < 0.12) return "wood";
-    if (roll < 0.27) return "stone";
-    if (roll < 0.43) return "dirt";
-    return "grass";
-  }));
-  state.world[state.player.y][state.player.x] = "grass";
+  state.voxels.clear();
+  for (let x = 0; x < CONFIG.WORLD_X; x += 1) {
+    for (let z = 0; z < CONFIG.WORLD_Z; z += 1) {
+      const edge = x === 0 || z === 0 || x === CONFIG.WORLD_X - 1 || z === CONFIG.WORLD_Z - 1;
+      const ground = edge ? "water" : randomItem(["grass", "grass", "grass", "dirt", "stone"]);
+      setVoxel(x, 0, z, ground);
+      if (!edge && Math.random() < 0.16) setVoxel(x, 1, z, randomItem(["stone", "wood", "dirt"]));
+    }
+  }
+  setVoxel(state.player.x, 0, state.player.z, "grass");
+  setVoxel(state.player.x, 1, state.player.z, null);
   state.target = randomItem(CONFIG.TARGET_BLOCKS);
-  const targetSpot = { x: 1 + Math.floor(Math.random() * (size - 2)), y: 1 + Math.floor(Math.random() * (size - 2)) };
-  state.world[targetSpot.y][targetSpot.x] = state.target;
+  const targetX = 1 + Math.floor(Math.random() * (CONFIG.WORLD_X - 2));
+  const targetZ = 1 + Math.floor(Math.random() * (CONFIG.WORLD_Z - 2));
+  setVoxel(targetX, Math.random() < 0.5 ? 0 : 1, targetZ, state.target);
   $("target-label").textContent = `Mine the glowing ${TILE_LABELS[state.target]} blocks`;
 }
 
-function tileButton(type, x, y) {
-  const tile = document.createElement("button");
-  const isPlayer = x === state.player.x && y === state.player.y;
-  tile.className = `tile ${type}${isPlayer ? " player" : ""}${type === state.target ? " target" : ""}`;
-  tile.type = "button";
-  tile.title = isPlayer ? "You are here" : `${TILE_LABELS[type]} block`;
-  tile.setAttribute("role", "gridcell");
-  tile.setAttribute("aria-label", tile.title);
-  tile.addEventListener("click", () => chooseTile(x, y));
-  if (isPlayer) tile.innerHTML = '<span class="player-avatar" aria-hidden="true">◆</span>';
-  return tile;
+function resizeCanvas() {
+  const bounds = canvas.getBoundingClientRect();
+  const scale = window.devicePixelRatio || 1;
+  canvas.width = Math.max(1, Math.floor(bounds.width * scale));
+  canvas.height = Math.max(1, Math.floor(bounds.height * scale));
+  context.setTransform(scale, 0, 0, scale, 0, 0);
+  drawWorld();
 }
 
-function renderWorld() {
-  const world = $("world");
-  world.innerHTML = "";
-  state.world.forEach((row, y) => row.forEach((type, x) => world.appendChild(tileButton(type, x, y))));
-  renderHotbar();
+function isoPoint(x, y, z) {
+  const bounds = canvas.getBoundingClientRect();
+  return {
+    x: bounds.width / 2 + (x - z) * CONFIG.TILE_WIDTH / 2,
+    y: 70 + (x + z) * CONFIG.TILE_HEIGHT / 2 - y * CONFIG.BLOCK_HEIGHT,
+  };
+}
+
+function polygon(points, fill, stroke = "rgba(20, 37, 42, .35)") {
+  context.beginPath();
+  context.moveTo(points[0].x, points[0].y);
+  points.slice(1).forEach((point) => context.lineTo(point.x, point.y));
+  context.closePath();
+  context.fillStyle = fill;
+  context.fill();
+  context.strokeStyle = stroke;
+  context.lineWidth = 1;
+  context.stroke();
+}
+
+function drawVoxel(x, y, z, type, night) {
+  const top = isoPoint(x, y + 1, z);
+  const right = isoPoint(x + 1, y + 1, z);
+  const back = isoPoint(x + 1, y + 1, z + 1);
+  const left = isoPoint(x, y + 1, z + 1);
+  const bottomRight = isoPoint(x + 1, y, z);
+  const bottomLeft = isoPoint(x, y, z + 1);
+  const colors = COLORS[type];
+  const shade = night ? .72 : 1;
+  polygon([top, right, back, left], colors[0], "rgba(20, 37, 42, .5)");
+  polygon([left, back, bottomLeft, isoPoint(x, y, z)], colors[1], "rgba(20, 37, 42, .5)");
+  polygon([right, back, bottomRight, isoPoint(x + 1, y, z)], colors[2], "rgba(20, 37, 42, .5)");
+  if (night) {
+    context.fillStyle = "rgba(18, 30, 48, .24)";
+    polygon([top, right, back, left], `rgba(18, 30, 48, ${1 - shade})`, "transparent");
+  }
+  if (type === state.target) {
+    context.beginPath();
+    context.arc(top.x, top.y, 8, 0, Math.PI * 2);
+    context.fillStyle = "rgba(255, 224, 104, .85)";
+    context.shadowColor = "#ffe06a";
+    context.shadowBlur = 16;
+    context.fill();
+    context.shadowBlur = 0;
+  }
+}
+
+function drawPlayer(night) {
+  const point = isoPoint(state.player.x + .5, state.player.y + .95, state.player.z + .5);
+  context.fillStyle = night ? "#ffe36b" : "#fff8e8";
+  context.strokeStyle = "#26323a";
+  context.lineWidth = 3;
+  context.beginPath();
+  context.arc(point.x, point.y - 13, 9, 0, Math.PI * 2);
+  context.fill();
+  context.stroke();
+  context.fillStyle = "#65a8d8";
+  context.fillRect(point.x - 8, point.y - 4, 16, 13);
+}
+
+function drawWorld() {
+  if (!canvas || !context) return;
+  const bounds = canvas.getBoundingClientRect();
+  context.clearRect(0, 0, bounds.width, bounds.height);
+  const night = document.body.classList.contains("night");
+  context.fillStyle = night ? "#1a3042" : "#75c9db";
+  context.fillRect(0, 0, bounds.width, bounds.height);
+  context.fillStyle = night ? "rgba(255, 226, 122, .45)" : "rgba(255, 248, 210, .55)";
+  context.beginPath();
+  context.arc(bounds.width - 55, 48, 22, 0, Math.PI * 2);
+  context.fill();
+  const blocks = [...state.voxels.entries()].map(([location, type]) => {
+    const [x, y, z] = location.split(",").map(Number);
+    return { x, y, z, type };
+  }).sort((a, b) => (a.x + a.z + a.y) - (b.x + b.z + b.y));
+  blocks.forEach((block) => drawVoxel(block.x, block.y, block.z, block.type, night));
+  drawPlayer(night);
 }
 
 function renderHotbar() {
@@ -94,34 +183,37 @@ function renderHotbar() {
   $("selected-block").textContent = `Selected: ${TILE_LABELS[state.selectedType]}`;
 }
 
-function isAdjacent(x, y) { return Math.abs(x - state.player.x) + Math.abs(y - state.player.y) <= 1; }
-
-function movePlayer(dx, dy) {
+function movePlayer(dx, dz) {
   const x = state.player.x + dx;
-  const y = state.player.y + dy;
-  if (!inWorld(x, y)) return;
-  state.player = { x, y };
-  renderWorld();
+  const z = state.player.z + dz;
+  if (!inWorld(x, z) || getVoxel(x, 1, z)) return;
+  state.player.x = x;
+  state.player.z = z;
+  drawWorld();
 }
 
-function chooseTile(x, y) {
-  if (!state.running || !isAdjacent(x, y)) return;
-  state.player = { x, y };
-  renderWorld();
+function pickAdjacentVoxel() {
+  const candidates = [
+    [state.player.x, 1, state.player.z], [state.player.x, 0, state.player.z],
+    [state.player.x + 1, 1, state.player.z], [state.player.x - 1, 1, state.player.z],
+    [state.player.x, 1, state.player.z + 1], [state.player.x, 1, state.player.z - 1],
+    [state.player.x + 1, 0, state.player.z], [state.player.x - 1, 0, state.player.z],
+  ];
+  return candidates.find(([x, y, z]) => inWorld(x, z) && getVoxel(x, y, z) === state.target);
 }
 
 function mineBlock() {
   if (!state.running) return;
-  const candidates = [[state.player.x, state.player.y], [state.player.x + 1, state.player.y], [state.player.x - 1, state.player.y], [state.player.x, state.player.y + 1], [state.player.x, state.player.y - 1]];
-  const spot = candidates.find(([x, y]) => inWorld(x, y) && state.world[y][x] === state.target);
+  const spot = pickAdjacentVoxel();
   if (!spot) { showError(`Find a glowing ${TILE_LABELS[state.target]} block nearby first.`); return; }
-  const [x, y] = spot;
+  const [x, y, z] = spot;
+  setVoxel(x, y, z, null);
   state.inventory[state.target] += 1;
   state.score += CONFIG.POINTS_PER_BLOCK;
   state.matches += 1;
-  state.world[y][x] = randomItem(["grass", "dirt", "stone", "wood"]);
   renderStats();
-  renderWorld();
+  renderHotbar();
+  drawWorld();
   if (state.matches > 0 && state.matches % CONFIG.QUEST_EVERY === 0) $("quest-title").textContent = "Quest unlocked!";
 }
 
@@ -130,22 +222,19 @@ function buildBlock() {
     showError(`You need a ${TILE_LABELS[state.selectedType]} block in your hotbar.`);
     return;
   }
-  const candidates = [[state.player.x + 1, state.player.y], [state.player.x - 1, state.player.y], [state.player.x, state.player.y + 1], [state.player.x, state.player.y - 1]];
-  const spot = candidates.find(([x, y]) => inWorld(x, y) && state.world[y][x] !== state.target);
-  if (!spot) return;
-  const [x, y] = spot;
-  state.world[y][x] = state.selectedType;
+  const candidates = [[state.player.x + 1, state.player.z], [state.player.x - 1, state.player.z], [state.player.x, state.player.z + 1], [state.player.x, state.player.z - 1]];
+  const spot = candidates.find(([x, z]) => inWorld(x, z) && !getVoxel(x, 1, z));
+  if (!spot) { showError("There is no open space beside you."); return; }
+  setVoxel(spot[0], 1, spot[1], state.selectedType);
   state.inventory[state.selectedType] -= 1;
   state.score += 1;
   renderStats();
-  renderWorld();
+  renderHotbar();
+  drawWorld();
 }
 
 function craftStone() {
-  if (state.inventory.dirt < 2 || state.inventory.wood < 1) {
-    showError("Crafting needs 2 dirt and 1 wood.");
-    return;
-  }
+  if (state.inventory.dirt < 2 || state.inventory.wood < 1) { showError("Crafting needs 2 dirt and 1 wood."); return; }
   state.inventory.dirt -= 2;
   state.inventory.wood -= 1;
   state.inventory.stone += 1;
@@ -190,6 +279,7 @@ function updateClock() {
   const isNight = Math.floor((CONFIG.ROUND_SECONDS - state.seconds) / 10) % 2 === 1;
   document.body.classList.toggle("night", isNight);
   $("world-time").textContent = isNight ? "NIGHT" : "DAY";
+  drawWorld();
 }
 
 function startTimer() {
@@ -210,7 +300,7 @@ function beginGame(quest) {
   state.matches = 0;
   state.inventory = { ...CONFIG.STARTING_INVENTORY };
   state.selectedType = "grass";
-  state.player = { x: Math.floor(CONFIG.WORLD_SIZE / 2), y: Math.floor(CONFIG.WORLD_SIZE / 2) };
+  state.player = { x: Math.floor(CONFIG.WORLD_X / 2), y: 1, z: Math.floor(CONFIG.WORLD_Z / 2) };
   state.running = true;
   startScreen.classList.add("hidden");
   gameOver.classList.add("hidden");
@@ -219,8 +309,9 @@ function beginGame(quest) {
   $("craft-status").textContent = "2 dirt + 1 wood → 1 stone";
   renderStats();
   makeWorld();
-  renderWorld();
+  renderHotbar();
   renderQuest(quest);
+  resizeCanvas();
   startTimer();
 }
 
@@ -249,6 +340,18 @@ $("mine-button").addEventListener("click", mineBlock);
 $("build-button").addEventListener("click", buildBlock);
 $("play-again").addEventListener("click", () => { startScreen.classList.remove("hidden"); gameOver.classList.add("hidden"); document.body.classList.remove("night"); $("subject").focus(); });
 $("quit-button").addEventListener("click", endGame);
+canvas.addEventListener("click", (event) => {
+  if (!state.running) return;
+  const bounds = canvas.getBoundingClientRect();
+  const dx = (event.clientX - bounds.left - bounds.width / 2) / (CONFIG.TILE_WIDTH / 2);
+  const dz = (event.clientY - bounds.top - 70) / (CONFIG.TILE_HEIGHT / 2);
+  const x = Math.round((dx + dz) / 2);
+  const z = Math.round((dz - dx) / 2);
+  if (Math.abs(x - state.player.x) + Math.abs(z - state.player.z) === 1) {
+    movePlayer(x - state.player.x, z - state.player.z);
+  }
+});
+window.addEventListener("resize", resizeCanvas);
 document.addEventListener("keydown", (event) => {
   if (!state.running) return;
   const moves = { ArrowRight: [1, 0], d: [1, 0], D: [1, 0], ArrowLeft: [-1, 0], a: [-1, 0], A: [-1, 0], ArrowDown: [0, 1], s: [0, 1], S: [0, 1], ArrowUp: [0, -1], w: [0, -1], W: [0, -1] };

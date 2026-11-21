@@ -41,3 +41,7 @@ The game now uses a small 7x7 tile world with grass, dirt, stone, water, and woo
 ## 3D-style block world update
 
 The world is now an original 11x11 isometric 3D-style scene. Players can mine with E/space, build with B, select inventory slots, craft stone from dirt and wood, and watch the scene switch between day and night during the level.
+
+## Voxel rebuild
+
+The client now stores blocks as true `x,y,z` voxel coordinates in a `Map` and renders visible cube faces on a canvas. The learning quest, timer, scoring, inventory, crafting, day/night cycle, and server-only AI flow remain part of the game.
