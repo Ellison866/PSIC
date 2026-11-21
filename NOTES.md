@@ -33,3 +33,7 @@ Nothing yet.
 Try the one-minute level with a few elementary subjects and collect feedback for the competition video.
 
 The OpenAI model with “luna” in its name is `gpt-5.6-luna`.
+
+## Minecraft-style world update
+
+The game now uses a small 7x7 tile world with grass, dirt, stone, water, and wood blocks. The player moves with WASD or arrow keys, collects glowing target blocks, and sees collected blocks in a hotbar.
