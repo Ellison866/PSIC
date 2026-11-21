@@ -57,3 +57,7 @@ The world uses a repeatable seed to generate rolling hills, layered grass/dirt/s
 The renderer also draws a terrain silhouette fallback when no ray hits are visible, preventing the scene from appearing as only a flat sky and ground.
 
 The raycast begins beyond the player's own ground cell so the camera does not turn that cell into one giant flat wall.
+
+## Current terrain prototype
+
+The client game has been intentionally restarted to focus only on seeded terrain generation and textured voxel rendering. Movement, mining, placing, crafting, quests, and timers are deferred until the terrain view is solid. The server-side MindDo/OpenAI flow remains in place.
