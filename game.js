@@ -139,14 +139,22 @@ function colorForDistance(type, distance, night) {
 
 function drawTerrainSilhouette(width, height, horizon, night) {
   const columnWidth = Math.max(8, Math.floor(width / CONFIG.WORLD_X));
+  const blockHeight = 30;
   for (let column = 0; column < CONFIG.WORLD_X; column += 1) {
     const x = Math.floor(state.player.x + Math.cos(state.yaw) * (column - CONFIG.WORLD_X / 2));
     const z = Math.floor(state.player.z + Math.sin(state.yaw) * (column - CONFIG.WORLD_X / 2));
-    const heightInBlocks = inWorld(x, z) ? Math.max(1, highestVoxelY(x, z) + 1) : 1;
-    const top = horizon - heightInBlocks * 22;
-    const type = inWorld(x, z) ? blockAt(x, z) : "grass";
-    context.fillStyle = colorForDistance(type || "grass", 6, night);
-    context.fillRect(column * columnWidth, top, columnWidth + 1, height - top);
+    const highest = inWorld(x, z) ? highestVoxelY(x, z) : 0;
+    const heightInBlocks = Math.max(1, highest + 1);
+    for (let layer = 0; layer < heightInBlocks; layer += 1) {
+      const type = inWorld(x, z) ? getVoxel(x, layer, z) || "stone" : "grass";
+      const top = horizon - (layer + 1) * blockHeight;
+      context.fillStyle = colorForDistance(type, 6, night);
+      context.fillRect(column * columnWidth, top, columnWidth + 1, blockHeight + 1);
+      context.fillStyle = "rgba(255,255,255,.18)";
+      context.fillRect(column * columnWidth, top, columnWidth + 1, 3);
+      context.strokeStyle = "rgba(20, 37, 42, .45)";
+      context.strokeRect(column * columnWidth + .5, top + .5, columnWidth, blockHeight);
+    }
   }
 }
 
@@ -177,7 +185,8 @@ function drawWorld() {
     const dx = Math.cos(rayAngle);
     const dz = Math.sin(rayAngle);
     let hit = null;
-    for (let distance = .15; distance < 18; distance += .035) {
+    // Start beyond the player's own ground cell; otherwise every ray paints one giant flat wall.
+    for (let distance = 1.05; distance < 18; distance += .035) {
       const x = Math.floor(state.player.x + dx * distance);
       const z = Math.floor(state.player.z + dz * distance);
       const type = blockAt(x, z);
