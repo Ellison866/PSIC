@@ -5,7 +5,7 @@ const CONFIG = {
   WORLD_Z: 18,
   MAX_HEIGHT: 5,
   SEED: 20261120,
-  CAMERA: { x: 9, y: 4.6, z: -8, lookX: 9, lookY: 1.2, lookZ: 8 },
+  CAMERA: { x: 9, y: 4.6, z: 1.5, lookX: 9, lookY: 1.2, lookZ: 8 },
 };
 
 const BLOCK_COLORS = {
@@ -16,7 +16,7 @@ const BLOCK_COLORS = {
   wood: "#d08a4b",
 };
 
-const state = { voxels: new Map(), scene: null, camera: null, renderer: null };
+const state = { voxels: new Map(), scene: null, camera: null, renderer: null, keys: new Set() };
 const canvas = document.getElementById("terrain-canvas");
 
 function key(x, y, z) { return `${x},${y},${z}`; }
@@ -137,6 +137,34 @@ function resize() {
   state.renderer.render(state.scene, state.camera);
 }
 
+function moveCamera(direction, amount) {
+  const nextX = state.camera.position.x + direction.x * amount;
+  const nextZ = state.camera.position.z + direction.z * amount;
+  if (nextX < 1 || nextX > CONFIG.WORLD_X - 2 || nextZ < 1 || nextZ > CONFIG.WORLD_Z - 2) return;
+  state.camera.position.x = nextX;
+  state.camera.position.z = nextZ;
+  state.camera.lookAt(nextX, CONFIG.CAMERA.lookY, nextZ + 7);
+}
+
+function updateMovement(delta) {
+  const speed = 4 * delta;
+  const forward = { x: 0, z: 1 };
+  const right = { x: 1, z: 0 };
+  if (state.keys.has("w") || state.keys.has("arrowup")) moveCamera(forward, speed);
+  if (state.keys.has("s") || state.keys.has("arrowdown")) moveCamera({ x: -forward.x, z: -forward.z }, speed);
+  if (state.keys.has("a") || state.keys.has("arrowleft")) moveCamera({ x: -right.x, z: -right.z }, speed);
+  if (state.keys.has("d") || state.keys.has("arrowright")) moveCamera(right, speed);
+}
+
+let previousTime = performance.now();
+function animate(time) {
+  const delta = Math.min(.05, (time - previousTime) / 1000);
+  previousTime = time;
+  updateMovement(delta);
+  state.renderer.render(state.scene, state.camera);
+  requestAnimationFrame(animate);
+}
+
 generateTerrain();
 state.scene = buildScene();
 state.camera = new THREE.PerspectiveCamera(64, 1, .1, 100);
@@ -147,3 +175,15 @@ state.renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.getElementById("world-seed").textContent = `SEED ${CONFIG.SEED} · THREE.JS VOXELS`;
 window.addEventListener("resize", resize);
 resize();
+document.addEventListener("keydown", (event) => {
+  const keyName = event.key.toLowerCase();
+  if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(keyName)) {
+    event.preventDefault();
+    state.keys.add(keyName);
+  }
+});
+document.addEventListener("keyup", (event) => state.keys.delete(event.key.toLowerCase()));
+document.querySelectorAll("[data-move]").forEach((button) => {
+  button.addEventListener("pointerdown", (event) => { event.preventDefault(); moveCamera(JSON.parse(button.dataset.move), .65); });
+});
+requestAnimationFrame(animate);
